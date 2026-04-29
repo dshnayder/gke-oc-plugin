@@ -1,0 +1,11 @@
+{
+  "name": "gke-oc-plugin",
+  "version": "1.0.0",
+  "description": "GKE plugin for OpenClaw that creates a gke-ops agent.",
+  "main": "index.js",
+  "keywords": [
+    "openclaw",
+    "plugin"
+  ],
+  "license": "ISC"
+}
