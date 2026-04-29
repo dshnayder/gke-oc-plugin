@@ -4,9 +4,8 @@ const os = require('os');
 const { execSync, exec } = require('child_process');
 const { promisify } = require('util');
 const execAsync = promisify(exec);
-const { definePluginEntry } = require('openclaw/plugin-sdk/plugin-entry');
 
-module.exports = definePluginEntry({
+module.exports = {
   id: "gke-oc-plugin",
   name: "GKE OpenClaw Plugin",
   register(api) {
@@ -148,4 +147,4 @@ module.exports = definePluginEntry({
     // Run the initialization logic
     initializePlugin();
   }
-});
+};
