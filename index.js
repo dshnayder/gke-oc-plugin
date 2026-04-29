@@ -1,66 +1,67 @@
-const { Plugin } = require('@openclaw/sdk');
 const fs = require('fs');
 const path = require('path');
-const os = require('os');
+const { definePluginEntry } = require('openclaw/plugin-sdk/plugin-entry');
 
-class GkePlugin extends Plugin {
-  async onInstall(context) {
-    console.log("GkePlugin: onInstall called");
+module.exports = definePluginEntry({
+  id: "gke-oc-plugin",
+  name: "GKE OpenClaw Plugin",
+  register(api) {
+    const context = api; 
 
-    // 1. Register the managed stdio MCP server
-    try {
-      await context.mcp.register({
-        name: 'gke-mcp',
-        command: 'gke-mcp', // Assumed to be in PATH or use absolute path
-        args: [],
-        env: {
-          ...process.env,
-          USE_GKE_GCLOUD_AUTH: "true"
+    async function initializePlugin() {
+      try {
+        console.log("Attempting to create gke-ops agent...");
+        const agent = await context.agents.create({
+          id: 'gke-ops',
+          name: 'GKE Operations Agent'
+        });
+        
+        console.log("Agent created successfully.");
+        
+        // Resolve relative path to the template SOUL.md
+        const sourcePath = path.join(__dirname, 'agents', 'gke-ops', 'SOUL.md');
+        
+        // Determine destination path (fallback to default OpenClaw structure if not provided by agent object)
+        const workspacePath = agent.workspacePath || path.join(process.env.HOME, '.openclaw', 'agents', 'gke-ops', 'workspace');
+        const destPath = path.join(workspacePath, 'SOUL.md');
+        
+        console.log(`Copying SOUL.md from ${sourcePath} to ${destPath}`);
+        fs.mkdirSync(path.dirname(destPath), { recursive: true });
+        fs.copyFileSync(sourcePath, destPath);
+        console.log("SOUL.md copied successfully.");
+        
+        // Register MCP server
+        console.log("Registering MCP server...");
+        const mcpConfig = {
+          name: 'gke-mcp',
+          command: 'gke-mcp', // Assumed to be in PATH or absolute path
+          args: [],
+          env: {
+            ...process.env,
+            USE_GKE_GCLOUD_AUTH: "true"
+          }
+        };
+
+        try {
+          if (context.mcp && typeof context.mcp.register === 'function') {
+            console.log("Using context.mcp.register...");
+            await context.mcp.register(mcpConfig);
+          } else if (typeof context.registerMcpServer === 'function') {
+            console.log("Using context.registerMcpServer...");
+            await context.registerMcpServer(mcpConfig);
+          } else {
+            console.warn("No SDK method found for MCP registration on context object.");
+          }
+        } catch (sdkError) {
+          console.error("Failed to register MCP server via SDK:", sdkError.message);
         }
-      });
-      console.log("GkePlugin: MCP server registered.");
-    } catch (error) {
-      console.error("GkePlugin: Failed to register MCP server:", error.message);
+        
+      } catch (error) {
+        console.error("Failed to initialize plugin:", error);
+      }
     }
 
-    // 2. Create gke-ops agent and copy SOUL.md
-    try {
-      console.log("GkePlugin: Creating gke-ops agent...");
-      const agent = await context.agents.create({
-        id: 'gke-ops',
-        name: 'GKE Operations Agent',
-        model: 'gpt-4'
-      });
-
-      console.log("GkePlugin: Agent created successfully.");
-
-      const sourcePath = path.join(__dirname, 'agents', 'gke-ops', 'SOUL.md');
-      const workspacePath = agent.workspacePath || path.join(os.homedir(), '.openclaw', 'agents', 'gke-ops', 'workspace');
-      const destPath = path.join(workspacePath, 'SOUL.md');
-
-      console.log(`GkePlugin: Copying SOUL.md from ${sourcePath} to ${destPath}`);
-      fs.mkdirSync(path.dirname(destPath), { recursive: true });
-      fs.copyFileSync(sourcePath, destPath);
-      console.log("GkePlugin: SOUL.md copied successfully.");
-
-    } catch (error) {
-      console.error("GkePlugin: Failed to create agent or copy SOUL.md:", error.message);
-    }
+    // Run the initialization logic
+    initializePlugin();
   }
-
-  async activate(context) {
-    console.log("GkePlugin: activate called");
-
-    // 1. Make the tools available to the gke-ops agent
-    try {
-      await context.agents.update('gke-ops', {
-        mcpServers: ['gke-mcp']
-      });
-      console.log("GkePlugin: Bound gke-mcp to gke-ops agent.");
-    } catch (error) {
-      console.error("GkePlugin: Failed to bind MCP server to agent:", error.message);
-    }
-  }
-}
-
-module.exports = GkePlugin;
+});
