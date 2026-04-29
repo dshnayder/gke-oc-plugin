@@ -14,40 +14,40 @@ export default {
     console.log("GKE OpenClaw Plugin registered.");
 
     // Run command to add agent
-    exec('openclaw agents add gke-sre', (error, stdout, stderr) => {
-      if (error) {
-        console.error(`Error creating agent via CLI: ${error.message}`);
-        return;
+    api.runtime.config.mutateConfigFile({
+      afterWrite: { mode: "auto" },
+      mutate(draft) {
+        draft.agents ??= {};
+        draft.agents.list ??= [];
+        if (!draft.agents.list.find(a => a.id === 'gke-sre')) {
+          draft.agents.list.push({ 
+            id: 'gke-sre',
+            workspace: path.join(os.homedir(), '.openclaw', 'agents', 'gke-sre')
+          });
+          console.log("Added gke-sre agent to config draft.");
+        }
       }
-      if (stderr) {
-        console.warn(`Agent creation stderr: ${stderr}`);
-      }
-      console.log(`Agent creation stdout: ${stdout}`);
+    }).then(async (followUp) => {
+      console.log(`Config mutation completed. Follow-up:`, followUp);
 
-      // After creation, copy the SOUL.md file
-      // The documentation suggests agents are created under ~/.openclaw/agents/
-      const homeDir = os.homedir();
-      const targetDir = path.join(homeDir, '.openclaw', 'agents', 'gke-sre');
+      const targetDir = path.join(os.homedir(), '.openclaw', 'agents', 'gke-sre');
       const targetPath = path.join(targetDir, 'SOUL.md');
       const sourcePath = path.join(__dirname, 'agents', 'gke-ops', 'SOUL.md');
 
-      console.log(`Attempting to copy from ${sourcePath} to ${targetPath}`);
+      console.log(`Attempting to initialize workspace at ${targetDir}`);
 
       try {
-        if (!fs.existsSync(targetDir)) {
-          console.error(`Target directory does not exist after creation command: ${targetDir}`);
-          return;
-        }
+        // Use SDK to run shell commands for file operations, avoiding direct 'fs'
+        await api.runtime.system.runCommandWithTimeout('mkdir', ['-p', targetDir]);
+        console.log(`Created directory ${targetDir}`);
 
-        if (fs.existsSync(sourcePath)) {
-          fs.copyFileSync(sourcePath, targetPath);
-          console.log(`Copied SOUL.md to ${targetPath}`);
-        } else {
-          console.error(`Source SOUL.md not found at: ${sourcePath}`);
-        }
+        await api.runtime.system.runCommandWithTimeout('cp', [sourcePath, targetPath]);
+        console.log(`Copied SOUL.md to ${targetPath}`);
       } catch (err) {
-        console.error(`Error copying file: ${err.message}`);
+        console.error(`Error during file operations: ${err.message}`);
       }
+    }).catch(err => {
+      console.error(`Error mutating config: ${err.message}`);
     });
   }
 };
