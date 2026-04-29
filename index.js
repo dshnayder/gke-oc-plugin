@@ -16,27 +16,38 @@ module.exports = {
 
     async function initializePlugin() {
       try {
-        // 1. Verify Go availability
+        // 1. Verify curl availability
         try {
-          execSync('go version', { stdio: 'ignore' });
+          execSync('curl --version', { stdio: 'ignore' });
         } catch (e) {
-          throw new Error(
-            "Go is not available. This plugin requires Go to install the GKE MCP tool.\n" +
-            "Please install Go from https://go.dev/doc/install and ensure it is in your PATH."
-          );
+          throw new Error("curl is not available. This plugin requires curl to install the GKE MCP tool.");
         }
 
-        console.log("Go is available.");
+        console.log("curl is available. Installing GKE MCP tool using script...");
 
-        // 2. Install GKE MCP tool
-        console.log("Installing GKE MCP tool...");
-        execSync('go install github.com/GoogleCloudPlatform/gke-mcp@latest', { stdio: 'inherit' });
+        // 2. Install GKE MCP tool using curl script
+        execSync('curl -sSL https://raw.githubusercontent.com/GoogleCloudPlatform/gke-mcp/main/install.sh | bash', { stdio: 'inherit' });
 
         // 3. Locate the binary
-        const goBinPath = process.env.GOBIN || path.join(os.homedir(), 'go', 'bin');
-        const binaryPath = path.join(goBinPath, 'gke-mcp');
+        let binaryPath = '';
+        try {
+          binaryPath = execSync('which gke-mcp').toString().trim();
+        } catch (e) {
+          // Fallback if not in PATH
+          const goBinPath = process.env.GOBIN || path.join(os.homedir(), 'go', 'bin');
+          binaryPath = path.join(goBinPath, 'gke-mcp');
+          
+          if (!fs.existsSync(binaryPath)) {
+            const localBinPath = path.join(os.homedir(), '.local', 'bin', 'gke-mcp');
+            if (fs.existsSync(localBinPath)) {
+              binaryPath = localBinPath;
+            } else {
+              console.warn("Could not locate gke-mcp binary automatically. Assuming default path.");
+            }
+          }
+        }
 
-        console.log(`GKE MCP tool installed at ${binaryPath}. Registering...`);
+        console.log(`GKE MCP tool installed. Path: ${binaryPath}. Registering...`);
 
         // 4. Register the binary as an MCP server in OpenClaw
         await context.mcp.register({
