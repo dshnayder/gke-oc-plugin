@@ -1,8 +1,8 @@
 const fs = require('fs');
 const path = require('path');
-const { definePluginEntry } = require('openclaw/plugin-sdk/plugin-entry');
+const os = require('os');
 
-module.exports = definePluginEntry({
+module.exports = {
   id: "gke-oc-plugin",
   name: "GKE OpenClaw Plugin",
   register(api) {
@@ -22,7 +22,7 @@ module.exports = definePluginEntry({
         const sourcePath = path.join(__dirname, 'agents', 'gke-ops', 'SOUL.md');
         
         // Determine destination path (fallback to default OpenClaw structure if not provided by agent object)
-        const workspacePath = agent.workspacePath || path.join(process.env.HOME, '.openclaw', 'agents', 'gke-ops', 'workspace');
+        const workspacePath = agent.workspacePath || path.join(os.homedir(), '.openclaw', 'agents', 'gke-ops', 'workspace');
         const destPath = path.join(workspacePath, 'SOUL.md');
         
         console.log(`Copying SOUL.md from ${sourcePath} to ${destPath}`);
@@ -64,4 +64,4 @@ module.exports = definePluginEntry({
     // Run the initialization logic
     initializePlugin();
   }
-});
+};
