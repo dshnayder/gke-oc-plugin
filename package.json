@@ -7,5 +7,10 @@
     "openclaw",
     "plugin"
   ],
-  "license": "ISC"
+  "license": "ISC",
+  "openclaw": {
+    "extensions": [
+      "./index.js"
+    ]
+  }
 }
