@@ -1,53 +1,39 @@
-import { exec } from 'child_process';
-import fs from 'fs';
 import path from 'path';
-import os from 'os';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+/**
+ * OpenClaw Plugin for GKE Operations.
+ * This plugin registers the 'gke-sre' agent on installation.
+ */
 export default {
   id: "gke-oc-plugin",
   name: "GKE OpenClaw Plugin",
+  
+  /**
+   * Called by OpenClaw when the plugin is loaded.
+   * @param {any} api The OpenClaw plugin API.
+   */
   register(api) {
-    console.log("GKE OpenClaw Plugin registered.");
+    console.log("GKE OpenClaw Plugin: Registering agents...");
 
-    // Run command to add agent
-    api.runtime.config.mutateConfigFile({
-      afterWrite: { mode: "auto" },
-      mutate(draft) {
-        draft.agents ??= {};
-        draft.agents.list ??= [];
-        if (!draft.agents.list.find(a => a.id === 'gke-sre')) {
-          draft.agents.list.push({ 
-            id: 'gke-sre',
-            workspace: path.join(os.homedir(), '.openclaw', 'agents', 'gke-sre')
-          });
-          console.log("Added gke-sre agent to config draft.");
-        }
-      }
-    }).then(async (followUp) => {
-      console.log(`Config mutation completed. Follow-up:`, followUp);
+    // Path to the agent's SOUL.md file
+    const soulPath = path.join(__dirname, 'agents', 'gke-ops', 'SOUL.md');
 
-      const targetDir = path.join(os.homedir(), '.openclaw', 'agents', 'gke-sre');
-      const targetPath = path.join(targetDir, 'SOUL.md');
-      const sourcePath = path.join(__dirname, 'agents', 'gke-ops', 'SOUL.md');
-
-      console.log(`Attempting to initialize workspace at ${targetDir}`);
-
-      try {
-        // Use SDK to run shell commands for file operations, avoiding direct 'fs'
-        await api.runtime.system.runCommandWithTimeout('mkdir', ['-p', targetDir]);
-        console.log(`Created directory ${targetDir}`);
-
-        await api.runtime.system.runCommandWithTimeout('cp', [sourcePath, targetPath]);
-        console.log(`Copied SOUL.md to ${targetPath}`);
-      } catch (err) {
-        console.error(`Error during file operations: ${err.message}`);
-      }
-    }).catch(err => {
-      console.error(`Error mutating config: ${err.message}`);
+    // Use the official API to register the agent.
+    // In OpenClaw, 'api.agents.register' is the standard way to add new agents.
+    // We provide the unique ID, a human-readable name, and the workspace path.
+    api.agents.register({
+      id: 'gke-sre',
+      name: 'GKE SRE Expert',
+      description: 'Expert Site Reliability Engineer for GKE clusters.',
+      workspace: path.join(__dirname, 'agents', 'gke-ops'),
+      // The soul field points to the primary personality/instruction file.
+      soul: soulPath
     });
+
+    console.log("GKE OpenClaw Plugin: 'gke-sre' agent registered successfully.");
   }
 };
