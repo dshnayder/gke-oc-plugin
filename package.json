@@ -21,7 +21,7 @@
     "url": "git+https://github.com/dshnayder/gke-oc-plugin.git"
   },
   "author": "",
-  "type": "commonjs",
+  "type": "module",
   "bugs": {
     "url": "https://github.com/dshnayder/gke-oc-plugin/issues"
   },

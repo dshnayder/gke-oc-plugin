@@ -1,7 +1,7 @@
 {
   "id": "gke-oc-plugin",
   "name": "GKE OpenClaw Plugin",
-  "description": "Plugin that creates a gke-ops agent on installation.",
+  "description": "Plugin that creates a gke-sre agent on installation.",
   "version": "1.0.0",
   "configSchema": {
     "type": "object",
