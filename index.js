@@ -1,7 +1,9 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const { execSync } = require('child_process');
+const { execSync, exec } = require('child_process');
+const { promisify } = require('util');
+const execAsync = promisify(exec);
 const { definePluginEntry } = require('openclaw/plugin-sdk/plugin-entry');
 
 module.exports = definePluginEntry({
@@ -9,6 +11,9 @@ module.exports = definePluginEntry({
   name: "GKE OpenClaw Plugin",
   register(api) {
     const context = api;
+    const repoUrl = "https://github.com/GoogleCloudPlatform/gke-mcp.git";
+    const commitFilePath = path.join(__dirname, '.gke-mcp-commit');
+    let lastCommit = null;
 
     async function initializePlugin() {
       try {
@@ -22,9 +27,10 @@ module.exports = definePluginEntry({
           );
         }
 
-        console.log("Go is available. Installing GKE MCP tool...");
+        console.log("Go is available.");
 
         // 2. Install GKE MCP tool
+        console.log("Installing GKE MCP tool...");
         execSync('go install github.com/GoogleCloudPlatform/gke-mcp@latest', { stdio: 'inherit' });
 
         // 3. Locate the binary
@@ -37,7 +43,7 @@ module.exports = definePluginEntry({
         await context.mcp.register({
           name: 'gke-mcp',
           command: binaryPath,
-          args: [], // The GKE MCP server usually reads from gcloud config automatically
+          args: [],
           env: {
             ...process.env,
             USE_GKE_GCLOUD_AUTH: "true" 
@@ -66,9 +72,76 @@ module.exports = definePluginEntry({
         fs.copyFileSync(sourcePath, destPath);
         console.log("SOUL.md copied successfully.");
 
+        // Send activation message
+        try {
+          await context.messaging.send({
+            to: 'user:default',
+            text: "🚀 GKE OpenClaw Plugin Activated!\n\nI've successfully created 'gke-ops' agent and initialized its SOUL.md file. Your GKE-MCP server is also standing by."
+          });
+          console.log("Activation message sent.");
+        } catch (error) {
+          console.error("Could not send activation message:", error);
+        }
+
+        // 7. Get initial HEAD commit or read from disk
+        if (fs.existsSync(commitFilePath)) {
+          lastCommit = fs.readFileSync(commitFilePath, 'utf8').trim();
+          console.log(`Read last commit from disk: ${lastCommit}`);
+        }
+
+        try {
+          console.log(`Fetching remote HEAD from ${repoUrl}...`);
+          const { stdout } = await execAsync(`git ls-remote ${repoUrl} HEAD`);
+          const currentRemoteCommit = stdout.split('\t')[0].trim();
+          console.log(`Remote GKE MCP commit: ${currentRemoteCommit}`);
+          
+          if (!lastCommit) {
+            lastCommit = currentRemoteCommit;
+            fs.writeFileSync(commitFilePath, lastCommit, 'utf8');
+            console.log("Stored initial commit to disk.");
+          }
+        } catch (error) {
+          console.error("Failed to get remote commit:", error.message);
+        }
+
+        // 8. Set up background task for update checks
+        console.log("Setting up background task for update checks...");
+        setInterval(async () => {
+          try {
+            console.log("Checking for updates to gke-mcp...");
+            const { stdout } = await execAsync(`git ls-remote ${repoUrl} HEAD`);
+            const currentCommit = stdout.split('\t')[0].trim();
+            
+            if (lastCommit && currentCommit !== lastCommit) {
+              console.log("A newer version of gke-mcp is available.");
+              
+              try {
+                await context.messaging.send({
+                  to: 'user:default',
+                  text: "🔔 A newer version of gke-mcp is available. Please pull and rebuild."
+                });
+                console.log("Notification sent via SDK.");
+              } catch (e) {
+                console.error("Failed to send message via SDK:", e.message);
+              }
+              
+              lastCommit = currentCommit; // Update state
+              fs.writeFileSync(commitFilePath, lastCommit, 'utf8'); // Persist
+              console.log("Updated commit stored to disk.");
+            } else if (!lastCommit) {
+              lastCommit = currentCommit;
+              fs.writeFileSync(commitFilePath, lastCommit, 'utf8');
+            } else {
+              console.log("gke-mcp is up to date.");
+            }
+          } catch (error) {
+            console.error("Error checking for updates:", error.message);
+          }
+        }, 3600000); // Check every hour
+
       } catch (error) {
         console.error("Failed to initialize plugin:", error.message);
-        throw error; // Rethrow to fail plugin installation/loading
+        throw error;
       }
     }
 
